@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抓捕koko游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            position: relative;
+            background: linear-gradient(to bottom, #1a1a1a, #333);
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #game-canvas {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        .falling-doll {
+            position: absolute;
+            width: 90px;
+            height: auto;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .falling-doll.caught {
+            animation: catch 0.2s forwards;
+            pointer-events: none;
+        }
+        @keyframes catch {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.2); opacity: 0; }
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            background-color: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        button:hover { background-color: #e04343; }
+        #start-screen, #game-over-screen {
+            text-align: center;
+            color: white;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="start-screen">
+            <h1 style="margin-bottom: 30px;">抓捕严肃小熊！</h1>
+            <button onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div id="game-canvas">
+            <div id="ui-layer">
+                <div>得分: <span id="score" style="color: #ff4d4d;">0</span></div>
+                <div style="margin-top: 5px;">生命: <span id="lives" style="color: #28a745;">5</span></div>
+            </div>
+        </div>
+
+        <div id="game-over-screen" style="display: none;">
+            <h1>游戏结束！</h1>
+            <p style="font-size: 24px;">您的最终分数是: <span id="final-score" style="color: #ff4d4d; font-weight: bold;">0</span></p>
+            <button onclick="restartGame()">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        const gameCanvas = document.getElementById('game-canvas');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        let score = 0;
+        let lives = 5;
+        let isGameOver = false;
+        let dollSpawnInterval;
+        let currentIntervalTime = 1000;
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameCanvas.style.display = 'block';
+            score = 0;
+            lives = 5;
+            currentIntervalTime = 1000;
+            isGameOver = false;
+            updateUI();
+            startDollSpawning();
+        }
+
+        function updateUI() {
+            scoreDisplay.textContent = score;
+            livesDisplay.textContent = lives;
+        }
+
+        function createDoll() {
+            if (isGameOver) return;
+
+            const doll = document.createElement('img');
+            // 这里使用了一张可用的网络猫咪玩偶图，你可以按方法一换成你自己的 doll.png
+            doll.src = 'koko.jpeg'; 
+            doll.classList.add('falling-doll');
+            doll.style.borderRadius = "50%"; // 让替代图稍微圆润好看一点
+            
+            const randomX = Math.random() * (window.innerWidth - 100);
+            doll.style.left = `${randomX}px`;
+            doll.style.top = `-100px`;
+
+            const randomDuration = 2.5 + Math.random() * 2.5; 
+
+            // 使用 🌟 mousedown 事件替代 click，响应速度更快、判定更准
+            doll.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                if (isGameOver || doll.classList.contains('caught')) return;
+                
+                score += 10;
+                updateUI();
+                doll.classList.add('caught');
+                
+                // 难度渐进
+                if (score % 50 === 0 && currentIntervalTime > 300) {
+                    currentIntervalTime -= 100;
+                    startDollSpawning();
+                }
+            });
+
+            gameCanvas.appendChild(doll);
+
+            const animation = doll.animate([
+                { top: '-100px' },
+                { top: `${window.innerHeight}px` }
+            ], {
+                duration: randomDuration * 1000,
+                easing: 'linear',
+                fill: 'forwards'
+            });
+
+            animation.onfinish = function() {
+                if (!doll.classList.contains('caught') && !isGameOver) {
+                    lives--;
+                    updateUI();
+                    if (lives <= 0) {
+                        endGame();
+                    }
+                }
+                if (doll.parentNode) {
+                    gameCanvas.removeChild(doll);
+                }
+            };
+        }
+
+        function startDollSpawning() {
+            clearInterval(dollSpawnInterval);
+            dollSpawnInterval = setInterval(createDoll, currentIntervalTime);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            clearInterval(dollSpawnInterval);
+            const remainingDolls = document.querySelectorAll('.falling-doll');
+            remainingDolls.forEach(doll => doll.remove());
+            gameCanvas.style.display = 'none';
+            gameOverScreen.style.display = 'block';
+            finalScoreDisplay.textContent = score;
+        }
+
+        function restartGame() {
+            startGame();
+        }
+    </script>
+</body>
+</html>
